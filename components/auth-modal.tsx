@@ -26,6 +26,7 @@ export default function AuthModal({ isOpen, onClose, mode, onModeChange }: AuthM
   const [showEmailConfirmation, setShowEmailConfirmation] = useState(false)
   const [userEmail, setUserEmail] = useState("")
   const [allowLocation, setAllowLocation] = useState(false)
+  const [isRequestingLocation, setIsRequestingLocation] = useState(false)
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -78,8 +79,6 @@ export default function AuthModal({ isOpen, onClose, mode, onModeChange }: AuthM
     return true
   }
 
-  const [isRequestingLocation, setIsRequestingLocation] = useState(false)
-
   const handleLocationCheckboxChange = async () => {
     // If already checked, uncheck
     if (allowLocation) {
@@ -104,10 +103,35 @@ export default function AuthModal({ isOpen, onClose, mode, onModeChange }: AuthM
     setError(null)
 
     try {
-      // Directly call navigator.geolocation.getCurrentPosition to trigger browser prompt
+      // First check if we have permissions API support and the current permission state
+      let shouldPrompt = true
+      if ("permissions" in navigator) {
+        try {
+          const permission = await navigator.permissions.query({ name: "geolocation" })
+          console.log("[v0] Geolocation permission state:", permission.state)
+          
+          if (permission.state === "denied") {
+            setAllowLocation(false)
+            setError("Location permission has been blocked. Please reset it in your browser settings: Settings > Privacy > Site settings > Location, find this site, and set to 'Allow'.")
+            setIsRequestingLocation(false)
+            return
+          }
+          
+          shouldPrompt = permission.state === "prompt"
+        } catch (permErr) {
+          console.log("[v0] Permission query failed, proceeding with request")
+        }
+      }
+
+      // Request location from browser
       const location = await new Promise<any>((resolve, reject) => {
+        const timeoutId = setTimeout(() => {
+          reject(new GeolocationPositionError(3, "Timeout"))
+        }, 25000)
+
         navigator.geolocation.getCurrentPosition(
           (position) => {
+            clearTimeout(timeoutId)
             resolve({
               latitude: position.coords.latitude,
               longitude: position.coords.longitude,
@@ -116,6 +140,7 @@ export default function AuthModal({ isOpen, onClose, mode, onModeChange }: AuthM
             })
           },
           (error) => {
+            clearTimeout(timeoutId)
             reject(error)
           },
           {
@@ -127,21 +152,23 @@ export default function AuthModal({ isOpen, onClose, mode, onModeChange }: AuthM
       })
 
       if (location) {
+        console.log("[v0] Location obtained successfully")
         setAllowLocation(true)
         setError(null)
       }
     } catch (err: any) {
       setAllowLocation(false)
-      console.log("[v0] Location error code:", err?.code, "message:", err?.message)
+      const errorCode = err?.code || err?.PERMISSION_DENIED
+      console.log("[v0] Location error code:", errorCode, "message:", err?.message)
       
-      if (err?.code === 1) {
-        setError("Location permission was denied. Please enable location in your browser settings and try again.")
-      } else if (err?.code === 2) {
-        setError("Location information is unavailable. Please try again.")
-      } else if (err?.code === 3) {
-        setError("Location request timed out. Please ensure location is enabled and try again.")
+      if (errorCode === 1 || errorCode === "PermissionDenied") {
+        setError("Location permission was denied. You can still create an account without sharing your location. Location sharing is optional and helps provide personalized manifestations.")
+      } else if (errorCode === 2) {
+        setError("Location information is unavailable. You can still create an account without it. Location sharing is optional.")
+      } else if (errorCode === 3) {
+        setError("Location request timed out. You can still create an account without it. Location sharing is optional.")
       } else {
-        setError("Could not get location. Please make sure location access is enabled and try again.")
+        setError("Could not access location. You can still create an account without it. Location sharing is optional.")
       }
     } finally {
       setIsRequestingLocation(false)
@@ -152,11 +179,6 @@ export default function AuthModal({ isOpen, onClose, mode, onModeChange }: AuthM
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!validateForm()) return
-
-    if (mode === "signup" && !allowLocation) {
-      setError("Please allow location access to continue")
-      return
-    }
 
     setLoading(true)
     setError(null)
@@ -522,10 +544,10 @@ export default function AuthModal({ isOpen, onClose, mode, onModeChange }: AuthM
                           className="text-sm font-medium text-gray-300 flex items-center gap-2"
                         >
                           <MapPin className="w-4 h-4 text-purple-400" />
-                          {isRequestingLocation ? "Requesting Location..." : allowLocation ? "Location Allowed" : "Allow Location"}
+                          {isRequestingLocation ? "Requesting Location..." : allowLocation ? "Location Allowed ✓" : "Share Location (Optional)"}
                         </span>
                         <p className="text-xs text-gray-400 mt-1 leading-relaxed">
-                          Get personalized manifestations based on your location for better results.
+                          Get personalized manifestations based on your location. You can skip this.
                         </p>
                       </div>
                     </button>
