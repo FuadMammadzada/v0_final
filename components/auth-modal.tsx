@@ -104,22 +104,44 @@ export default function AuthModal({ isOpen, onClose, mode, onModeChange }: AuthM
     setError(null)
 
     try {
-      const location = await getCurrentLocation()
+      // Directly call navigator.geolocation.getCurrentPosition to trigger browser prompt
+      const location = await new Promise<any>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            resolve({
+              latitude: position.coords.latitude,
+              longitude: position.coords.longitude,
+              accuracy: position.coords.accuracy,
+              timestamp: position.timestamp,
+            })
+          },
+          (error) => {
+            reject(error)
+          },
+          {
+            enableHighAccuracy: true,
+            timeout: 20000,
+            maximumAge: 0, // Don't use cached location - always request fresh
+          }
+        )
+      })
+
       if (location) {
         setAllowLocation(true)
         setError(null)
-      } else {
-        setAllowLocation(false)
-        setError("Location permission was not completed. Please tap Allow in the browser prompt and try again.")
       }
     } catch (err: any) {
       setAllowLocation(false)
+      console.log("[v0] Location error code:", err?.code, "message:", err?.message)
+      
       if (err?.code === 1) {
-        setError("Location permission was denied. Please allow location access in your browser settings.")
+        setError("Location permission was denied. Please enable location in your browser settings and try again.")
+      } else if (err?.code === 2) {
+        setError("Location information is unavailable. Please try again.")
       } else if (err?.code === 3) {
-        setError("Location request timed out. Please try again.")
+        setError("Location request timed out. Please ensure location is enabled and try again.")
       } else {
-        setError("Could not get location. Please try again.")
+        setError("Could not get location. Please make sure location access is enabled and try again.")
       }
     } finally {
       setIsRequestingLocation(false)
