@@ -103,27 +103,7 @@ export default function AuthModal({ isOpen, onClose, mode, onModeChange }: AuthM
     setError(null)
 
     try {
-      // First check if we have permissions API support and the current permission state
-      let shouldPrompt = true
-      if ("permissions" in navigator) {
-        try {
-          const permission = await navigator.permissions.query({ name: "geolocation" })
-          console.log("[v0] Geolocation permission state:", permission.state)
-          
-          if (permission.state === "denied") {
-            setAllowLocation(false)
-            setError("Location permission has been blocked. Please reset it in your browser settings: Settings > Privacy > Site settings > Location, find this site, and set to 'Allow'.")
-            setIsRequestingLocation(false)
-            return
-          }
-          
-          shouldPrompt = permission.state === "prompt"
-        } catch (permErr) {
-          console.log("[v0] Permission query failed, proceeding with request")
-        }
-      }
-
-      // Request location from browser
+      // Request location from browser directly - let the native API handle permissions
       const location = await new Promise<any>((resolve, reject) => {
         const timeoutId = setTimeout(() => {
           reject(new GeolocationPositionError(3, "Timeout"))
@@ -132,6 +112,7 @@ export default function AuthModal({ isOpen, onClose, mode, onModeChange }: AuthM
         navigator.geolocation.getCurrentPosition(
           (position) => {
             clearTimeout(timeoutId)
+            console.log("[v0] Location obtained successfully")
             resolve({
               latitude: position.coords.latitude,
               longitude: position.coords.longitude,
@@ -141,6 +122,7 @@ export default function AuthModal({ isOpen, onClose, mode, onModeChange }: AuthM
           },
           (error) => {
             clearTimeout(timeoutId)
+            console.log("[v0] Geolocation error code:", error.code, "message:", error.message)
             reject(error)
           },
           {
@@ -152,7 +134,6 @@ export default function AuthModal({ isOpen, onClose, mode, onModeChange }: AuthM
       })
 
       if (location) {
-        console.log("[v0] Location obtained successfully")
         setAllowLocation(true)
         setError(null)
       }
