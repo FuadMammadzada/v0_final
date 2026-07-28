@@ -27,6 +27,8 @@ export default function AuthModal({ isOpen, onClose, mode, onModeChange }: AuthM
   const [userEmail, setUserEmail] = useState("")
   const [allowLocation, setAllowLocation] = useState(false)
   const [isRequestingLocation, setIsRequestingLocation] = useState(false)
+  const [locationNotice, setLocationNotice] = useState<string | null>(null)
+  const [locationNeedsTopLevel, setLocationNeedsTopLevel] = useState(false)
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -80,76 +82,109 @@ export default function AuthModal({ isOpen, onClose, mode, onModeChange }: AuthM
   }
 
   const handleLocationCheckboxChange = async () => {
-    // If already checked, uncheck
     if (allowLocation) {
       setAllowLocation(false)
+      setLocationNotice(null)
+      setLocationNeedsTopLevel(false)
       return
     }
 
-    // Prevent multiple simultaneous requests
     if (isRequestingLocation) return
 
-    if (typeof window !== "undefined" && !window.isSecureContext && window.location.hostname !== "localhost") {
-      setError("Location permission requires HTTPS. Please open the secure site URL and try again.")
+    if (
+      typeof window !== "undefined" &&
+      !window.isSecureContext &&
+      window.location.hostname !== "localhost"
+    ) {
+      setLocationNotice(
+        "Location requires HTTPS. Open the secure app URL, or continue without sharing your location.",
+      )
+      setLocationNeedsTopLevel(false)
       return
     }
 
     if (typeof navigator === "undefined" || !navigator.geolocation) {
-      setError("Geolocation is not supported by your browser.")
+      setLocationNotice(
+        "Geolocation is not supported by this browser. You can continue without sharing your location.",
+      )
+      setLocationNeedsTopLevel(false)
+      return
+    }
+
+    const permissionsPolicy = (
+      document as Document & {
+        permissionsPolicy?: {
+          allowsFeature: (feature: string) => boolean
+        }
+      }
+    ).permissionsPolicy
+
+    if (
+      permissionsPolicy &&
+      !permissionsPolicy.allowsFeature("geolocation")
+    ) {
+      setLocationNotice(
+        "Location is blocked inside the v0 preview. Open the app in a new tab to allow it, or continue without location.",
+      )
+      setLocationNeedsTopLevel(true)
       return
     }
 
     setIsRequestingLocation(true)
     setError(null)
+    setLocationNotice(null)
+    setLocationNeedsTopLevel(false)
 
     try {
-      // Request location from browser directly - let the native API handle permissions
-      const location = await new Promise<any>((resolve, reject) => {
-        const timeoutId = setTimeout(() => {
-          reject(new GeolocationPositionError(3, "Timeout"))
-        }, 25000)
-
-        navigator.geolocation.getCurrentPosition(
-          (position) => {
-            clearTimeout(timeoutId)
-            console.log("[v0] Location obtained successfully")
-            resolve({
-              latitude: position.coords.latitude,
-              longitude: position.coords.longitude,
-              accuracy: position.coords.accuracy,
-              timestamp: position.timestamp,
-            })
-          },
-          (error) => {
-            clearTimeout(timeoutId)
-            console.log("[v0] Geolocation error code:", error.code, "message:", error.message)
-            reject(error)
-          },
-          {
-            enableHighAccuracy: true,
-            timeout: 20000,
-            maximumAge: 0, // Don't use cached location - always request fresh
-          }
-        )
-      })
+      const location = await getCurrentLocation()
 
       if (location) {
         setAllowLocation(true)
         setError(null)
+        setLocationNotice(null)
+      } else {
+        setAllowLocation(false)
+
+        let permissionState: PermissionStatus | null = null
+
+        try {
+          permissionState =
+            (
+              await navigator.permissions?.query({
+                name: "geolocation",
+              })
+            ) ?? null
+        } catch {
+          // Permissions API is not supported by every browser.
+        }
+
+        const embeddedPreview = window.self !== window.top
+
+        setLocationNeedsTopLevel(embeddedPreview)
+        setLocationNotice(
+          embeddedPreview
+            ? "The embedded preview could not request location. Open the app in a new tab to allow it, or continue without location."
+            : permissionState?.state === "denied"
+              ? "Location is blocked in your browser settings. You can enable it there or continue without location."
+              : "Location was not available. You can try again or continue without sharing it.",
+        )
       }
     } catch (err: any) {
       setAllowLocation(false)
-      const errorCode = err?.code || err?.PERMISSION_DENIED
-      console.log("[v0] Location error code:", errorCode, "message:", err?.message)
-      
-      if (errorCode === 1 || errorCode === "PermissionDenied") {
-        setError("Location permission was denied. You can still create an account without sharing your location. Location sharing is optional and helps provide personalized manifestations.")
-      } else if (errorCode === 2) {
-        setError("Location information is unavailable. You can still create an account without it. Location sharing is optional.")
-      } else if (errorCode === 3) {
-        setError("Location request timed out. You can still create an account without it. Location sharing is optional.")
+      setLocationNeedsTopLevel(window.self !== window.top)
+
+      if (err?.code === 1) {
+        setLocationNotice(
+          "Location permission was denied. You can enable it in browser settings or continue without location.",
+        )
+      } else if (err?.code === 3) {
+        setLocationNotice(
+          "Location request timed out. You can try again or continue without location.",
+        )
       } else {
-        setError("Could not access location. You can still create an account without it. Location sharing is optional.")
+        setLocationNotice(
+          "Could not get your location. You can try again or continue without location.",
+        )
       }
     } finally {
       setIsRequestingLocation(false)
@@ -230,6 +265,8 @@ export default function AuthModal({ isOpen, onClose, mode, onModeChange }: AuthM
     setShowPassword(false)
     setShowConfirmPassword(false)
     setAllowLocation(false)
+    setLocationNotice(null)
+    setLocationNeedsTopLevel(false)
     setError(null)
     setSuccess(null)
   }
@@ -528,10 +565,32 @@ export default function AuthModal({ isOpen, onClose, mode, onModeChange }: AuthM
                           {isRequestingLocation ? "Requesting Location..." : allowLocation ? "Location Allowed ✓" : "Share Location (Optional)"}
                         </span>
                         <p className="text-xs text-gray-400 mt-1 leading-relaxed">
-                          Get personalized manifestations based on your location. You can skip this.
+                          Optional. Share your location for more personalized manifestations.
                         </p>
                       </div>
                     </button>
+                  </div>
+                )}
+
+                {locationNotice && (
+                  <div className="rounded-lg border border-amber-500/30 bg-amber-950/20 p-3 text-xs leading-relaxed text-amber-200">
+                    <p>{locationNotice}</p>
+
+                    {locationNeedsTopLevel && (
+                      <button
+                        type="button"
+                        className="mt-2 font-semibold text-amber-100 underline underline-offset-2 hover:text-white"
+                        onClick={() => {
+                          window.open(
+                            window.location.href,
+                            "_blank",
+                            "noopener,noreferrer",
+                          )
+                        }}
+                      >
+                        Open app in a new tab
+                      </button>
+                    )}
                   </div>
                 )}
 
