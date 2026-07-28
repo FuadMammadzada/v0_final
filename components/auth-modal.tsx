@@ -26,6 +26,8 @@ export default function AuthModal({ isOpen, onClose, mode, onModeChange }: AuthM
   const [showEmailConfirmation, setShowEmailConfirmation] = useState(false)
   const [userEmail, setUserEmail] = useState("")
   const [allowLocation, setAllowLocation] = useState(false)
+  const [locationNotice, setLocationNotice] = useState<string | null>(null)
+  const [locationNeedsTopLevel, setLocationNeedsTopLevel] = useState(false)
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -84,6 +86,8 @@ export default function AuthModal({ isOpen, onClose, mode, onModeChange }: AuthM
     // If already checked, uncheck
     if (allowLocation) {
       setAllowLocation(false)
+      setLocationNotice(null)
+      setLocationNeedsTopLevel(false)
       return
     }
 
@@ -91,35 +95,71 @@ export default function AuthModal({ isOpen, onClose, mode, onModeChange }: AuthM
     if (isRequestingLocation) return
 
     if (typeof window !== "undefined" && !window.isSecureContext && window.location.hostname !== "localhost") {
-      setError("Location permission requires HTTPS. Please open the secure site URL and try again.")
+      setLocationNotice("Location requires HTTPS. Open the secure app URL, or continue without sharing your location.")
+      setLocationNeedsTopLevel(false)
       return
     }
 
     if (typeof navigator === "undefined" || !navigator.geolocation) {
-      setError("Geolocation is not supported by your browser.")
+      setLocationNotice("Geolocation is not supported by this browser. You can continue without sharing your location.")
+      setLocationNeedsTopLevel(false)
+      return
+    }
+
+    const permissionsPolicy = (
+      document as Document & {
+        permissionsPolicy?: { allowsFeature: (feature: string) => boolean }
+      }
+    ).permissionsPolicy
+
+    if (permissionsPolicy && !permissionsPolicy.allowsFeature("geolocation")) {
+      setLocationNotice(
+        "Location is blocked inside the v0 preview. Open the app in a new tab to allow it, or continue without location.",
+      )
+      setLocationNeedsTopLevel(true)
       return
     }
 
     setIsRequestingLocation(true)
     setError(null)
+    setLocationNotice(null)
+    setLocationNeedsTopLevel(false)
 
     try {
       const location = await getCurrentLocation()
       if (location) {
         setAllowLocation(true)
         setError(null)
+        setLocationNotice(null)
       } else {
         setAllowLocation(false)
-        setError("Location permission was not completed. Please tap Allow in the browser prompt and try again.")
+        let permissionState: PermissionState | null = null
+
+        try {
+          permissionState = (await navigator.permissions?.query({ name: "geolocation" })).state ?? null
+        } catch {
+          // Permissions API is not available in every browser.
+        }
+
+        const embeddedPreview = window.self !== window.top
+        setLocationNeedsTopLevel(embeddedPreview)
+        setLocationNotice(
+          embeddedPreview
+            ? "The embedded preview could not request location. Open the app in a new tab to allow it, or continue without location."
+            : permissionState === "denied"
+              ? "Location is blocked in your browser settings. You can enable it there or continue without location."
+              : "Location was not available. You can try again or continue without sharing it.",
+        )
       }
     } catch (err: any) {
       setAllowLocation(false)
+      setLocationNeedsTopLevel(window.self !== window.top)
       if (err?.code === 1) {
-        setError("Location permission was denied. Please allow location access in your browser settings.")
+        setLocationNotice("Location permission was denied. You can enable it in browser settings or continue without location.")
       } else if (err?.code === 3) {
-        setError("Location request timed out. Please try again.")
+        setLocationNotice("Location request timed out. You can try again or continue without location.")
       } else {
-        setError("Could not get location. Please try again.")
+        setLocationNotice("Could not get your location. You can try again or continue without location.")
       }
     } finally {
       setIsRequestingLocation(false)
@@ -130,11 +170,6 @@ export default function AuthModal({ isOpen, onClose, mode, onModeChange }: AuthM
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!validateForm()) return
-
-    if (mode === "signup" && !allowLocation) {
-      setError("Please allow location access to continue")
-      return
-    }
 
     setLoading(true)
     setError(null)
@@ -205,6 +240,8 @@ export default function AuthModal({ isOpen, onClose, mode, onModeChange }: AuthM
     setShowPassword(false)
     setShowConfirmPassword(false)
     setAllowLocation(false)
+    setLocationNotice(null)
+    setLocationNeedsTopLevel(false)
     setError(null)
     setSuccess(null)
   }
@@ -503,10 +540,26 @@ export default function AuthModal({ isOpen, onClose, mode, onModeChange }: AuthM
                           {isRequestingLocation ? "Requesting Location..." : allowLocation ? "Location Allowed" : "Allow Location"}
                         </span>
                         <p className="text-xs text-gray-400 mt-1 leading-relaxed">
-                          Get personalized manifestations based on your location for better results.
+                          Optional. Share your location for more personalized manifestations.
                         </p>
                       </div>
                     </button>
+                    {locationNotice && (
+                      <div className="rounded-lg border border-amber-500/30 bg-amber-950/20 p-3 text-xs leading-relaxed text-amber-200">
+                        <p>{locationNotice}</p>
+                        {locationNeedsTopLevel && (
+                          <button
+                            type="button"
+                            className="mt-2 font-semibold text-amber-100 underline underline-offset-2 hover:text-white"
+                            onClick={() => {
+                              window.open(window.location.href, "_blank", "noopener,noreferrer")
+                            }}
+                          >
+                            Open app in a new tab
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
 
