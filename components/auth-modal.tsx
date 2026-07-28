@@ -196,6 +196,9 @@ export default function AuthModal({ isOpen, onClose, mode, onModeChange }: AuthM
     e.preventDefault()
     if (!validateForm()) return
 
+    // Prevent double submission
+    if (loading) return
+
     setLoading(true)
     setError(null)
     setSuccess(null)
@@ -205,7 +208,17 @@ export default function AuthModal({ isOpen, onClose, mode, onModeChange }: AuthM
         const { error } = await signUp(formData.email, formData.password, formData.name)
 
         if (error) {
-          setError(error.message || "Failed to create account")
+          const errorMsg = error.message || "Failed to create account"
+          
+          // Better error messaging for rate limiting
+          if (errorMsg.toLowerCase().includes("rate")) {
+            setError("Too many signup attempts. Please wait a few minutes before trying again.")
+          } else if (errorMsg.toLowerCase().includes("already exists") || errorMsg.toLowerCase().includes("user already")) {
+            setError("This email is already registered. Please sign in instead.")
+            handleModeChange("signin")
+          } else {
+            setError(errorMsg)
+          }
         } else {
           setUserEmail(formData.email)
           setShowEmailConfirmation(true)
@@ -215,7 +228,13 @@ export default function AuthModal({ isOpen, onClose, mode, onModeChange }: AuthM
         const { error } = await signIn(formData.email, formData.password)
 
         if (error) {
-          setError(error.message || "Failed to sign in")
+          const errorMsg = error.message || "Failed to sign in"
+          
+          if (errorMsg.toLowerCase().includes("invalid")) {
+            setError("Invalid email or password")
+          } else {
+            setError(errorMsg)
+          }
         } else {
           setSuccess("Welcome back!")
           setTimeout(() => {
