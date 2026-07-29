@@ -38,9 +38,14 @@ function workflowUrl(mode: ManifestationMode, getEnv: typeof getRequiredEnv) {
 
 export async function handleManifestationRequest(request: Request, deps: ManifestationWorkflowDeps = {}) {
   const context = createRequestLogContext(request, "/api/make/manifestation")
+  
+  // In development, allow more frequent manifestation attempts (20 per 60s)
+  // In production, limit to 6 per 60s
+  const isDev = process.env.NODE_ENV === "development"
+  
   const rateLimited = await (deps.checkRateLimit ?? checkRateLimit)(request, {
     key: "make-manifestation",
-    limit: 6,
+    limit: isDev ? 20 : 6,
     windowMs: 60_000,
     requireDistributed: true,
   })
