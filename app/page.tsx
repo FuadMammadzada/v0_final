@@ -664,7 +664,7 @@ function HomeContent() {
   }, [searchResult])
 
   const getGlobeUrl = () => {
-    const baseUrl = "https://6a211f044a561b1c652c1598--silly-tulumba-93f14c.netlify.app/"
+    const baseUrl = "/globe.html"
 
     if (searchResult) {
       const params = new URLSearchParams()
@@ -825,15 +825,12 @@ function HomeContent() {
           {/* Local videos avoid third-party playback and CORS restrictions in previews. */}
           <div className="absolute inset-0 w-full h-full z-0">
             <TimeAwareMobileHeroVideo />
-            <video
-              className="absolute inset-0 hidden h-full w-full bg-black object-cover md:block"
-              src="/videos/hero-day.mp4"
-              autoPlay
-              muted
-              loop
-              playsInline
-              preload="metadata"
+            <img
+              className="hero-cinematic-background absolute inset-0 hidden h-full w-full bg-black object-cover md:block"
+              src="https://i.vimeocdn.com/video/2029395946-e3b093f09187b40c4f11d682f70cabca9dc0734312499dfe06ae6b6a5ab1a6d4-d_1920x1080?region=us"
+              alt=""
               aria-hidden="true"
+              referrerPolicy="no-referrer"
             />
           </div>
 
@@ -879,7 +876,7 @@ function HomeContent() {
           {/* Video Background */}
           <div className="absolute inset-0 w-full h-full z-0">
             <video
-              className="absolute inset-0 h-full w-full bg-black object-cover"
+              className="absolute inset-0 h-full w-full bg-black object-contain md:hidden"
               src="/videos/hero-night.mp4"
               autoPlay
               muted
@@ -887,6 +884,13 @@ function HomeContent() {
               playsInline
               preload="metadata"
               aria-hidden="true"
+            />
+            <img
+              className="hero-cinematic-background absolute inset-0 hidden h-full w-full bg-black object-cover md:block"
+              src="https://i.vimeocdn.com/video/2034246731-7540018e8ef3404933ba1073f16b749fdbe305e08ce3fa9372c7bb92ce1d7ca3-d_1920x1080?region=us"
+              alt=""
+              aria-hidden="true"
+              referrerPolicy="no-referrer"
             />
           </div>
 

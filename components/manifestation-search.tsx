@@ -229,14 +229,18 @@ const ManifestationSearch = ({
       })
 
       if (!webhookResponse.ok) {
+        const errorBody = await webhookResponse.json().catch(() => null)
+
         if (webhookResponse.status === 402) {
           setSearchError("Payment required to complete the 108 arcs. Please complete checkout and try again.")
-        } else if (webhookResponse.status === 403) {
+        } else if (webhookResponse.status === 403 && errorBody?.error === "Manifestation limit exceeded") {
           setSearchError("Your manifestation limit has been reached. Use One More Try to continue.")
+        } else if (webhookResponse.status === 403) {
+          setSearchError("The request was blocked by the preview security check. Please refresh and try again.")
         } else if (webhookResponse.status === 429) {
           setSearchError("Too many attempts. Please wait a moment and try again.")
         } else {
-          setSearchError("Manifestation is taking longer than expected. Please try again.")
+          setSearchError(errorBody?.error || "Manifestation is taking longer than expected. Please try again.")
         }
         return
       }

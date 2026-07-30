@@ -21,8 +21,31 @@ function configuredOrigins() {
   return origins
 }
 
+function requestOrigins(request: NextRequest) {
+  const origins = new Set([normalizeOrigin(request.nextUrl.origin)])
+  const forwardedHost = request.headers.get("x-forwarded-host")?.split(",")[0]?.trim()
+  const host = forwardedHost || request.headers.get("host")
+
+  if (host) {
+    const protocol =
+      request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim() || request.nextUrl.protocol.replace(":", "")
+    origins.add(normalizeOrigin(`${protocol}://${host}`))
+  }
+
+  return origins
+}
+
+function isV0SameOriginRequest(request: NextRequest, origin: string) {
+  try {
+    const hostname = new URL(origin).hostname
+    return hostname.endsWith(".vusercontent.net") && request.headers.get("sec-fetch-site") === "same-origin"
+  } catch {
+    return false
+  }
+}
+
 function applyCors(response: NextResponse, origin: string | null, requestId: string) {
-  if (origin && configuredOrigins().has(origin)) {
+  if (origin && configuredOrigins().has(normalizeOrigin(origin))) {
     response.headers.set("Access-Control-Allow-Origin", origin)
     response.headers.set("Access-Control-Allow-Credentials", "true")
   }
@@ -41,9 +64,12 @@ export function proxy(request: NextRequest) {
   const requestId = request.headers.get("x-request-id") ?? crypto.randomUUID()
   const origin = request.headers.get("origin")
   const allowed = configuredOrigins()
-  const isSameOrigin = origin ? normalizeOrigin(origin) === request.nextUrl.origin : true
+  const normalizedOrigin = origin ? normalizeOrigin(origin) : null
+  const isSameOrigin = normalizedOrigin
+    ? requestOrigins(request).has(normalizedOrigin) || isV0SameOriginRequest(request, normalizedOrigin)
+    : true
 
-  if (origin && !isSameOrigin && !allowed.has(normalizeOrigin(origin))) {
+  if (origin && !isSameOrigin && !allowed.has(normalizedOrigin!)) {
     return applyCors(NextResponse.json({ error: "Origin not allowed" }, { status: 403 }), null, requestId)
   }
 

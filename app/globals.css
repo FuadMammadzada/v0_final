@@ -277,6 +277,26 @@ body {
   background: linear-gradient(rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.7));
 }
 
+@keyframes hero-cinematic-pan {
+  from {
+    transform: scale(1.02) translate3d(0, 0, 0);
+  }
+  to {
+    transform: scale(1.08) translate3d(-1%, -1%, 0);
+  }
+}
+
+.hero-cinematic-background {
+  animation: hero-cinematic-pan 24s ease-in-out infinite alternate;
+  will-change: transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-cinematic-background {
+    animation: none;
+  }
+}
+
 @utility text-balance {
   text-wrap: balance;
 }
