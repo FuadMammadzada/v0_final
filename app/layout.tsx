@@ -12,6 +12,9 @@ export const metadata: Metadata = {
   title: "Manifestchain",
   description: "Manifest your dreams with blockchain technology",
   generator: "v0.dev",
+  icons: {
+    icon: "/icon.svg",
+  },
 }
 
 export default function RootLayout({

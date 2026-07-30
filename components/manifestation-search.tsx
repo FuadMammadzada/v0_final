@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react"
 import { AlertCircle, Calendar, Loader2, Lock, MapPin, Search, Sparkles } from "lucide-react"
 import { useAuth } from "@/lib/auth-context"
 import { useGeolocation } from "@/components/geolocation-provider"
-import { supabase } from "@/lib/supabase"
+import { getAccessToken } from "@/lib/supabase"
 
 interface ManifestationSearchProps {
   value: string
@@ -26,19 +26,6 @@ const fallbackSuggestions = [
   "Achieve financial freedom",
   "Create lasting happiness",
 ]
-
-async function getAccessToken() {
-  if (!supabase) {
-    throw new Error("Authentication is unavailable")
-  }
-
-  const { data, error } = await supabase.auth.getSession()
-  if (error || !data.session?.access_token) {
-    throw new Error("Please sign in again")
-  }
-
-  return data.session.access_token
-}
 
 function readCoordinates(webhookData: any) {
   if (Array.isArray(webhookData)) return webhookData

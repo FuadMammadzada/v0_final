@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { AlertTriangle, CheckCircle2, CreditCard, RefreshCcw, Search, Shield, Users, Webhook } from "lucide-react"
-import { supabase } from "@/lib/supabase"
+import { getAccessToken } from "@/lib/supabase"
 
 type Tab = "readiness" | "payments" | "webhooks" | "users"
 
@@ -18,13 +18,6 @@ const tabs: Array<{ id: Tab; label: string; icon: typeof Shield }> = [
   { id: "webhooks", label: "Webhooks", icon: Webhook },
   { id: "users", label: "Users", icon: Users },
 ]
-
-async function getAccessToken() {
-  if (!supabase) throw new Error("Supabase is not configured")
-  const { data, error } = await supabase.auth.getSession()
-  if (error || !data.session?.access_token) throw new Error("Admin sign-in required")
-  return data.session.access_token
-}
 
 async function adminFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
   const token = await getAccessToken()

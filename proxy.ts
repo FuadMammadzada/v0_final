@@ -1,13 +1,21 @@
 import { NextResponse, type NextRequest } from "next/server"
 
+function normalizeOrigin(value: string) {
+  try {
+    return new URL(value).origin
+  } catch {
+    return value.trim().replace(/\/$/, "")
+  }
+}
+
 function configuredOrigins() {
   const origins = new Set<string>()
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL
-  if (appUrl) origins.add(appUrl)
+  if (appUrl) origins.add(normalizeOrigin(appUrl))
 
   for (const origin of (process.env.ALLOWED_ORIGINS ?? "").split(",")) {
     const trimmed = origin.trim()
-    if (trimmed) origins.add(trimmed)
+    if (trimmed) origins.add(normalizeOrigin(trimmed))
   }
 
   return origins
@@ -33,8 +41,9 @@ export function proxy(request: NextRequest) {
   const requestId = request.headers.get("x-request-id") ?? crypto.randomUUID()
   const origin = request.headers.get("origin")
   const allowed = configuredOrigins()
+  const isSameOrigin = origin ? normalizeOrigin(origin) === request.nextUrl.origin : true
 
-  if (origin && !allowed.has(origin)) {
+  if (origin && !isSameOrigin && !allowed.has(normalizeOrigin(origin))) {
     return applyCors(NextResponse.json({ error: "Origin not allowed" }, { status: 403 }), null, requestId)
   }
 

@@ -2,7 +2,7 @@
 
 import { useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { supabase } from "@/lib/supabase"
+import { getAccessToken } from "@/lib/supabase"
 import { Loader2 } from "lucide-react"
 
 export default function AuthCallback() {
@@ -11,23 +11,8 @@ export default function AuthCallback() {
   useEffect(() => {
     const handleAuthCallback = async () => {
       try {
-        if (!supabase) {
-          router.replace("/?error=auth_error")
-          return
-        }
-
-        const { data, error } = await supabase.auth.getSession()
-
-        if (error) {
-          router.replace("/?error=auth_error")
-          return
-        }
-
-        if (data.session) {
-          router.replace("/?success=signed_in")
-        } else {
-          router.replace("/")
-        }
+        await getAccessToken()
+        router.replace("/?success=signed_in")
       } catch {
         router.replace("/?error=auth_error")
       }
