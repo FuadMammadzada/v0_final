@@ -1,20 +1,69 @@
 import { NextResponse, type NextRequest } from "next/server"
 
+function normalizeOrigin(value: string) {
+  try {
+    return new URL(value).origin
+  } catch {
+    return value.trim().replace(/\/$/, "")
+  }
+}
+
 function configuredOrigins() {
   const origins = new Set<string>()
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL
-  if (appUrl) origins.add(appUrl)
+  if (appUrl) origins.add(normalizeOrigin(appUrl))
 
   for (const origin of (process.env.ALLOWED_ORIGINS ?? "").split(",")) {
     const trimmed = origin.trim()
-    if (trimmed) origins.add(trimmed)
+    if (trimmed) origins.add(normalizeOrigin(trimmed))
   }
 
   return origins
 }
 
+function requestOrigins(request: NextRequest) {
+  const origins = new Set([normalizeOrigin(request.nextUrl.origin)])
+  const forwardedHost = request.headers.get("x-forwarded-host")?.split(",")[0]?.trim()
+  const host = forwardedHost || request.headers.get("host")
+
+  if (host) {
+    const protocol =
+      request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim() || request.nextUrl.protocol.replace(":", "")
+    origins.add(normalizeOrigin(`${protocol}://${host}`))
+  }
+
+  return origins
+}
+
+function isV0SameOriginRequest(request: NextRequest, origin: string) {
+  try {
+    const originHostname = new URL(origin).hostname.toLowerCase()
+    if (!originHostname.endsWith(".vusercontent.net")) return false
+
+    const publicHostnames = [
+      request.headers.get("x-forwarded-host")?.split(",")[0]?.trim(),
+      request.headers.get("host"),
+      request.nextUrl.hostname,
+    ]
+      .filter((hostname): hostname is string => Boolean(hostname))
+      .map((hostname) => hostname.replace(/^https?:\/\//, "").split(":")[0].toLowerCase())
+      .filter((hostname) => hostname.endsWith(".vusercontent.net"))
+
+    if (publicHostnames.length > 0) {
+      return publicHostnames.includes(originHostname)
+    }
+
+    // v0 can rewrite the public host to an internal address before Next.js sees
+    // the request. In that case, the browser's fetch metadata is the only
+    // remaining same-origin signal.
+    return request.headers.get("sec-fetch-site") === "same-origin"
+  } catch {
+    return false
+  }
+}
+
 function applyCors(response: NextResponse, origin: string | null, requestId: string) {
-  if (origin && configuredOrigins().has(origin)) {
+  if (origin && configuredOrigins().has(normalizeOrigin(origin))) {
     response.headers.set("Access-Control-Allow-Origin", origin)
     response.headers.set("Access-Control-Allow-Credentials", "true")
   }
@@ -33,8 +82,12 @@ export function proxy(request: NextRequest) {
   const requestId = request.headers.get("x-request-id") ?? crypto.randomUUID()
   const origin = request.headers.get("origin")
   const allowed = configuredOrigins()
+  const normalizedOrigin = origin ? normalizeOrigin(origin) : null
+  const isSameOrigin = normalizedOrigin
+    ? requestOrigins(request).has(normalizedOrigin) || isV0SameOriginRequest(request, normalizedOrigin)
+    : true
 
-  if (origin && !allowed.has(origin)) {
+  if (origin && !isSameOrigin && !allowed.has(normalizedOrigin!)) {
     return applyCors(NextResponse.json({ error: "Origin not allowed" }, { status: 403 }), null, requestId)
   }
 

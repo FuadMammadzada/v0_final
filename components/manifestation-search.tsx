@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react"
 import { AlertCircle, Calendar, Loader2, Lock, MapPin, Search, Sparkles } from "lucide-react"
 import { useAuth } from "@/lib/auth-context"
 import { useGeolocation } from "@/components/geolocation-provider"
-import { supabase } from "@/lib/supabase"
+import { getAccessToken } from "@/lib/supabase"
 
 interface ManifestationSearchProps {
   value: string
@@ -26,19 +26,6 @@ const fallbackSuggestions = [
   "Achieve financial freedom",
   "Create lasting happiness",
 ]
-
-async function getAccessToken() {
-  if (!supabase) {
-    throw new Error("Authentication is unavailable")
-  }
-
-  const { data, error } = await supabase.auth.getSession()
-  if (error || !data.session?.access_token) {
-    throw new Error("Please sign in again")
-  }
-
-  return data.session.access_token
-}
 
 function readCoordinates(webhookData: any) {
   if (Array.isArray(webhookData)) return webhookData
@@ -242,14 +229,18 @@ const ManifestationSearch = ({
       })
 
       if (!webhookResponse.ok) {
+        const errorBody = await webhookResponse.json().catch(() => null)
+
         if (webhookResponse.status === 402) {
           setSearchError("Payment required to complete the 108 arcs. Please complete checkout and try again.")
-        } else if (webhookResponse.status === 403) {
+        } else if (webhookResponse.status === 403 && errorBody?.error === "Manifestation limit exceeded") {
           setSearchError("Your manifestation limit has been reached. Use One More Try to continue.")
+        } else if (webhookResponse.status === 403) {
+          setSearchError("The request was blocked by the preview security check. Please refresh and try again.")
         } else if (webhookResponse.status === 429) {
           setSearchError("Too many attempts. Please wait a moment and try again.")
         } else {
-          setSearchError("Manifestation is taking longer than expected. Please try again.")
+          setSearchError(errorBody?.error || "Manifestation is taking longer than expected. Please try again.")
         }
         return
       }

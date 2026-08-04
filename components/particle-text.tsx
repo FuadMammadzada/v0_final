@@ -19,7 +19,7 @@ export default function ParticleText({ text, imageSrc, className = "" }: Particl
     const canvas = canvasRef.current
     if (!canvas) return
 
-    const ctx = canvas.getContext("2d", { alpha: true })
+    const ctx = canvas.getContext("2d", { alpha: true, willReadFrequently: true })
     if (!ctx) return
 
     // Get device pixel ratio for sharp rendering

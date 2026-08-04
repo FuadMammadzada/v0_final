@@ -588,6 +588,22 @@ export default function AuthModal({ isOpen, onClose, mode, onModeChange }: AuthM
                         </p>
                       </div>
                     </button>
+                    {locationNotice && (
+                      <div className="rounded-lg border border-amber-500/30 bg-amber-950/20 p-3 text-xs leading-relaxed text-amber-200">
+                        <p>{locationNotice}</p>
+                        {locationNeedsTopLevel && (
+                          <button
+                            type="button"
+                            className="mt-2 font-semibold text-amber-100 underline underline-offset-2 hover:text-white"
+                            onClick={() => {
+                              window.open(window.location.href, "_blank", "noopener,noreferrer")
+                            }}
+                          >
+                            Open app in a new tab
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
 

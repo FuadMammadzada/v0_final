@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Manifestchain Globe</title>
+    <style>
+      html,
+      body,
+      #globe {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        overflow: hidden;
+        background: #000;
+      }
+
+      canvas {
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="globe" aria-label="Interactive manifestation globe"></div>
+
+    <script type="module">
+      import * as THREE from "https://esm.sh/three@0.184.0"
+      import Globe from "https://esm.sh/globe.gl@2.46.1?deps=three@0.184.0"
+
+      const globe = new Globe(document.getElementById("globe"))
+        .globeImageUrl("https://cdn.jsdelivr.net/npm/three-globe/example/img/earth-blue-marble.jpg")
+        .bumpImageUrl("https://cdn.jsdelivr.net/npm/three-globe/example/img/earth-topology.png")
+        .backgroundImageUrl("https://cdn.jsdelivr.net/npm/three-globe/example/img/night-sky.png")
+        .arcColor(() => "#ffffff")
+        .arcAltitude((arc) => {
+          const latitudeDistance = arc.startLat - arc.endLat
+          const longitudeDistance = arc.startLng - arc.endLng
+          const distance = Math.sqrt(latitudeDistance ** 2 + longitudeDistance ** 2)
+          return Math.min(0.2, Math.max(0.04, distance / 120))
+        })
+        .arcStroke(1)
+        .arcDashLength(1)
+        .arcDashGap(0)
+        .arcDashInitialGap(() => Math.random())
+        .arcDashAnimateTime(4000)
+        .arcsData([])
+
+      globe.pointOfView({ lat: 20, lng: 0, altitude: 3.2 }, 0)
+      globe.controls().autoRotate = true
+      globe.controls().autoRotateSpeed = 0.35
+
+      const cloudTextureUrl =
+        "https://raw.githubusercontent.com/turban/webgl-earth/master/images/fair_clouds_4k.png"
+
+      new THREE.TextureLoader().load(cloudTextureUrl, (texture) => {
+        const clouds = new THREE.Mesh(
+          new THREE.SphereGeometry(globe.getGlobeRadius() * 1.004, 75, 75),
+          new THREE.MeshPhongMaterial({ map: texture, transparent: true }),
+        )
+        globe.scene().add(clouds)
+
+        const rotateClouds = () => {
+          clouds.rotation.y -= 0.0001
+          requestAnimationFrame(rotateClouds)
+        }
+
+        rotateClouds()
+      })
+
+      let sequenceTimer = null
+
+      function focusOnArc(arc) {
+        globe.controls().autoRotate = false
+        globe.pointOfView(
+          {
+            lat: (arc.startLat + arc.endLat) / 2,
+            lng: (arc.startLng + arc.endLng) / 2,
+            altitude: 2.8,
+          },
+          1200,
+        )
+
+        window.setTimeout(() => {
+          globe.controls().autoRotate = true
+        }, 1500)
+      }
+
+      function playArcs(arcs) {
+        if (sequenceTimer) window.clearTimeout(sequenceTimer)
+
+        const validArcs = Array.isArray(arcs)
+          ? arcs.filter(
+              (arc) =>
+                Number.isFinite(arc?.startLat) &&
+                Number.isFinite(arc?.startLng) &&
+                Number.isFinite(arc?.endLat) &&
+                Number.isFinite(arc?.endLng),
+            )
+          : []
+
+        globe.arcsData([])
+        let index = 0
+
+        const showNextArc = () => {
+          if (index >= validArcs.length) return
+
+          const arc = validArcs[index]
+          globe.arcsData([...globe.arcsData(), arc])
+          focusOnArc(arc)
+          index += 1
+          sequenceTimer = window.setTimeout(showNextArc, 4000)
+        }
+
+        showNextArc()
+      }
+
+      function readQueryArcs() {
+        const value = new URLSearchParams(window.location.search).get("arcs")
+        if (!value) return []
+
+        try {
+          return JSON.parse(value)
+        } catch {
+          return []
+        }
+      }
+
+      window.addEventListener("message", (event) => {
+        if (event.origin !== window.location.origin || event.data?.type !== "MANIFESTATION_DATA") return
+        playArcs(event.data.data?.arcsData)
+      })
+
+      playArcs(readQueryArcs())
+      window.parent.postMessage({ type: "GLOBE_READY" }, window.location.origin)
+    </script>
+  </body>
+</html>

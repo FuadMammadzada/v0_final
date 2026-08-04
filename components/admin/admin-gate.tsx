@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { supabase } from "@/lib/supabase"
+import { getAccessToken } from "@/lib/supabase"
 
 export default function AdminGate() {
   const [status, setStatus] = useState<"checking" | "denied" | "error">("checking")
@@ -10,15 +10,10 @@ export default function AdminGate() {
     let active = true
 
     async function verifyAdminAccess() {
-      if (!supabase) {
-        if (active) setStatus("denied")
-        return
-      }
-
-      const { data, error } = await supabase.auth.getSession()
-      const token = data.session?.access_token
-
-      if (error || !token) {
+      let token: string
+      try {
+        token = await getAccessToken()
+      } catch {
         if (active) setStatus("denied")
         window.location.replace("/")
         return

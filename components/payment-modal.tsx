@@ -7,7 +7,7 @@ import {
 } from '@stripe/react-stripe-js'
 import { loadStripe } from '@stripe/stripe-js'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
-import { supabase } from '@/lib/supabase'
+import { getAccessToken } from '@/lib/supabase'
 
 const stripePublishableKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
 const stripePromise = stripePublishableKey ? loadStripe(stripePublishableKey) : Promise.resolve(null)
@@ -19,19 +19,6 @@ interface PaymentModalProps {
   productId: string
   onClose: () => void
   onSuccess: (action: PaymentAction) => void | Promise<void>
-}
-
-async function getAccessToken() {
-  if (!supabase) {
-    throw new Error('Authentication is unavailable')
-  }
-
-  const { data, error } = await supabase.auth.getSession()
-  if (error || !data.session?.access_token) {
-    throw new Error('Please sign in again before paying')
-  }
-
-  return data.session.access_token
 }
 
 export function PaymentModal({
