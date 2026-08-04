@@ -822,26 +822,18 @@ function HomeContent() {
             )}
           </div>
 
-          {/* Mobile video switches between day and night using the visitor's local time. */}
+          {/* Local videos keep the rotating Earth moving in embedded previews. */}
           <div className="absolute inset-0 w-full h-full z-0">
             <TimeAwareMobileHeroVideo />
-            <iframe
-              src="https://player.vimeo.com/video/1095555714?badge=0&autopause=0&player_id=0&app_id=58479&autoplay=1&loop=1&muted=1&background=1&controls=0&title=0&byline=0&portrait=0&quality=720p"
-              className="absolute hidden md:block"
-              style={{
-                top: "50%",
-                left: "50%",
-                width: "177.77777778vh",
-                height: "56.25vw",
-                minWidth: "100vw",
-                minHeight: "100vh",
-                transform: "translate(-50%, -50%)",
-                border: "none",
-                outline: "none",
-              }}
-              frameBorder="0"
-              allow="autoplay; fullscreen; picture-in-picture"
-              title="Earth Background Video"
+            <video
+              className="absolute inset-0 hidden h-full w-full bg-black object-cover md:block"
+              src="/videos/hero-day.mp4"
+              autoPlay
+              muted
+              loop
+              playsInline
+              preload="auto"
+              aria-hidden="true"
             />
           </div>
 
@@ -886,23 +878,15 @@ function HomeContent() {
         >
           {/* Video Background */}
           <div className="absolute inset-0 w-full h-full z-0">
-            <iframe
-              src="https://player.vimeo.com/video/1099329131?badge=0&autopause=0&player_id=0&app_id=58479&autoplay=1&loop=1&muted=1&background=1&controls=0&title=0&byline=0&portrait=0&quality=720p"
-              className="absolute"
-              style={{
-                top: "50%",
-                left: "50%",
-                width: "177.77777778vh",
-                height: "56.25vw",
-                minWidth: "100vw",
-                minHeight: "100vh",
-                transform: "translate(-50%, -50%)",
-                border: "none",
-                outline: "none",
-              }}
-              frameBorder="0"
-              allow="autoplay; fullscreen; picture-in-picture"
-              title="Earth from Space Background Video"
+            <video
+              className="absolute inset-0 h-full w-full bg-black object-cover"
+              src="/videos/hero-night.mp4"
+              autoPlay
+              muted
+              loop
+              playsInline
+              preload="auto"
+              aria-hidden="true"
             />
           </div>
 
