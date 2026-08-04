@@ -16,11 +16,15 @@ export default function ParticleText({ text, imageSrc, className = "" }: Particl
   const [canvasKey, setCanvasKey] = useState(0)
 
   useEffect(() => {
-    const canvas = canvasRef.current
-    if (!canvas) return
+    const canvasElement = canvasRef.current
+    if (!canvasElement) return
 
-    const ctx = canvas.getContext("2d", { alpha: true, willReadFrequently: true })
-    if (!ctx) return
+    const renderingContext = canvasElement.getContext("2d", { alpha: true, willReadFrequently: true })
+    if (!renderingContext) return
+
+    // Keep non-null aliases so asynchronous callbacks retain the narrowed types.
+    const canvas = canvasElement
+    const ctx = renderingContext
 
     // Get device pixel ratio for sharp rendering
     const dpr = window.devicePixelRatio || 1
@@ -28,25 +32,35 @@ export default function ParticleText({ text, imageSrc, className = "" }: Particl
     // Store display dimensions
     let displayWidth = 0
     let displayHeight = 0
+    let disposed = false
+    let renderGeneration = 0
+
+    const hasRenderableSize = () =>
+      displayWidth > 0 && displayHeight > 0 && canvas.width > 0 && canvas.height > 0
 
     const updateCanvasSize = () => {
       const container = canvas.parentElement
-      if (container) {
-        displayWidth = container.offsetWidth
-        displayHeight = container.offsetHeight
+      if (!container) return false
 
-        // Set canvas size accounting for device pixel ratio
-        canvas.width = displayWidth * dpr
-        canvas.height = displayHeight * dpr
-        canvas.style.width = `${displayWidth}px`
-        canvas.style.height = `${displayHeight}px`
-        
-        // Scale context to match DPR
-        ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+      const bounds = container.getBoundingClientRect()
+      displayWidth = Math.round(bounds.width)
+      displayHeight = Math.round(bounds.height)
+
+      // Hidden or not-yet-laid-out containers can temporarily be 0x0.
+      if (displayWidth <= 0 || displayHeight <= 0) {
+        return false
       }
-    }
 
-    updateCanvasSize()
+      // Set canvas size accounting for device pixel ratio.
+      canvas.width = Math.max(1, Math.round(displayWidth * dpr))
+      canvas.height = Math.max(1, Math.round(displayHeight * dpr))
+      canvas.style.width = `${displayWidth}px`
+      canvas.style.height = `${displayHeight}px`
+
+      // Scale context to match DPR.
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+      return true
+    }
 
     let particles: {
       x: number
@@ -62,7 +76,7 @@ export default function ParticleText({ text, imageSrc, className = "" }: Particl
     let sourceImageData: ImageData | null = null
 
     function createTextImage() {
-      if (!ctx || !canvas || !text) return
+      if (!text || !hasRenderableSize()) return false
 
       ctx.fillStyle = "white"
       ctx.save()
@@ -94,17 +108,26 @@ export default function ParticleText({ text, imageSrc, className = "" }: Particl
 
       sourceImageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
       ctx.clearRect(0, 0, displayWidth, displayHeight)
+      return true
     }
 
-    function createImageSource() {
-      if (!ctx || !canvas) return
-
+    function createImageSource(generation: number) {
       const imageSource = imageSrc || "/manifestchain-logo.png"
 
       const img = new Image()
       img.crossOrigin = "anonymous"
 
       img.onload = () => {
+        if (
+          disposed ||
+          generation !== renderGeneration ||
+          !hasRenderableSize() ||
+          img.width <= 0 ||
+          img.height <= 0
+        ) {
+          return
+        }
+
         ctx.clearRect(0, 0, displayWidth, displayHeight)
 
         const scale = Math.min(displayWidth / img.width, displayHeight / img.height) * 0.8
@@ -121,14 +144,15 @@ export default function ParticleText({ text, imageSrc, className = "" }: Particl
         ctx.clearRect(0, 0, displayWidth, displayHeight)
 
         createInitialParticles()
-        animate()
+        startAnimation()
       }
 
       img.onerror = () => {
-        if (text) {
-          createTextImage()
+        if (disposed || generation !== renderGeneration) return
+
+        if (text && createTextImage()) {
           createInitialParticles()
-          animate()
+          startAnimation()
         }
       }
 
@@ -136,7 +160,7 @@ export default function ParticleText({ text, imageSrc, className = "" }: Particl
     }
 
     function createParticle() {
-      if (!ctx || !canvas || !sourceImageData) return null
+      if (!sourceImageData || !hasRenderableSize()) return null
 
       const data = sourceImageData.data
 
@@ -175,6 +199,8 @@ export default function ParticleText({ text, imageSrc, className = "" }: Particl
     }
 
     function createInitialParticles() {
+      if (!sourceImageData || !hasRenderableSize()) return
+
       // Balanced density for clear, readable text (use display dimensions)
       const divisor = 40
       const particleCount = Math.floor((displayWidth * displayHeight) / divisor)
@@ -185,10 +211,13 @@ export default function ParticleText({ text, imageSrc, className = "" }: Particl
       }
     }
 
-    let animationFrameId: number
+    let animationFrameId: number | null = null
 
     function animate() {
-      if (!ctx || !canvas || !isVisible) return
+      if (disposed || !isVisible || !sourceImageData || !hasRenderableSize()) {
+        animationFrameId = null
+        return
+      }
 
       ctx.clearRect(0, 0, displayWidth, displayHeight)
 
@@ -247,37 +276,50 @@ export default function ParticleText({ text, imageSrc, className = "" }: Particl
       animationFrameId = requestAnimationFrame(animate)
     }
 
-    if (imageSrc || (!text && !imageSrc)) {
-      createImageSource()
-    } else if (text) {
-      createTextImage()
-      createInitialParticles()
+    function startAnimation() {
+      if (animationFrameId !== null) {
+        cancelAnimationFrame(animationFrameId)
+      }
       animate()
     }
 
-    let resizeTimeout: NodeJS.Timeout
+    const initialize = () => {
+      renderGeneration += 1
+
+      if (animationFrameId !== null) {
+        cancelAnimationFrame(animationFrameId)
+        animationFrameId = null
+      }
+
+      particles = []
+      sourceImageData = null
+
+      if (!updateCanvasSize()) return
+
+      if (imageSrc || (!text && !imageSrc)) {
+        createImageSource(renderGeneration)
+      } else if (text && createTextImage()) {
+        createInitialParticles()
+        startAnimation()
+      }
+    }
+
+    initialize()
+
+    let resizeTimeout: ReturnType<typeof setTimeout> | undefined
     const handleResize = () => {
       // Debounce resize to handle orientation changes properly
-      clearTimeout(resizeTimeout)
+      if (resizeTimeout) clearTimeout(resizeTimeout)
       resizeTimeout = setTimeout(() => {
-        // Cancel current animation
-        cancelAnimationFrame(animationFrameId)
-        
-        // Reset canvas with new dimensions
-        updateCanvasSize()
-        particles = []
-        sourceImageData = null
-        
-        // Reinitialize
-        if (imageSrc || (!text && !imageSrc)) {
-          createImageSource()
-        } else if (text) {
-          createTextImage()
-          createInitialParticles()
-          animate()
-        }
+        initialize()
       }, 100)
     }
+
+    const resizeObserver =
+      typeof ResizeObserver !== "undefined" && canvas.parentElement
+        ? new ResizeObserver(() => handleResize())
+        : null
+    resizeObserver?.observe(canvas.parentElement!)
     
     const handleOrientationChange = () => {
       // Force full reinitialization on orientation change
@@ -327,7 +369,10 @@ export default function ParticleText({ text, imageSrc, className = "" }: Particl
     canvas.addEventListener("touchend", handleTouchEnd)
 
     return () => {
-      clearTimeout(resizeTimeout)
+      disposed = true
+      renderGeneration += 1
+      if (resizeTimeout) clearTimeout(resizeTimeout)
+      resizeObserver?.disconnect()
       window.removeEventListener("resize", handleResize)
       window.removeEventListener("orientationchange", handleOrientationChange)
       canvas.removeEventListener("mousemove", handleMouseMove)
@@ -335,7 +380,7 @@ export default function ParticleText({ text, imageSrc, className = "" }: Particl
       canvas.removeEventListener("mouseleave", handleMouseLeave)
       canvas.removeEventListener("touchstart", handleTouchStart)
       canvas.removeEventListener("touchend", handleTouchEnd)
-      cancelAnimationFrame(animationFrameId)
+      if (animationFrameId !== null) cancelAnimationFrame(animationFrameId)
     }
   }, [text, imageSrc, isVisible, canvasKey])
 
