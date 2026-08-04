@@ -37,6 +37,24 @@ describe("API origin protection", () => {
     expect(proxy(request).status).not.toBe(403)
   })
 
+  it("allows a v0 preview when TLS is terminated before Next.js", () => {
+    const request = new NextRequest("http://vm-new-chat.vusercontent.net/api/make/suggestions", {
+      method: "POST",
+      headers: { origin: "https://vm-new-chat.vusercontent.net" },
+    })
+
+    expect(proxy(request).status).not.toBe(403)
+  })
+
+  it("does not treat a different v0 preview host as same-origin", () => {
+    const request = new NextRequest("https://vm-manifestation-tracker.vusercontent.net/api/make/suggestions", {
+      method: "POST",
+      headers: { origin: "https://vm-untrusted-preview.vusercontent.net" },
+    })
+
+    expect(proxy(request).status).toBe(403)
+  })
+
   it("blocks an unconfigured cross-origin request", () => {
     const request = new NextRequest("https://preview.vusercontent.net/api/make/suggestions", {
       method: "POST",

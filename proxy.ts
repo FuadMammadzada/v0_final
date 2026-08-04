@@ -37,8 +37,26 @@ function requestOrigins(request: NextRequest) {
 
 function isV0SameOriginRequest(request: NextRequest, origin: string) {
   try {
-    const hostname = new URL(origin).hostname
-    return hostname.endsWith(".vusercontent.net") && request.headers.get("sec-fetch-site") === "same-origin"
+    const originHostname = new URL(origin).hostname.toLowerCase()
+    if (!originHostname.endsWith(".vusercontent.net")) return false
+
+    const publicHostnames = [
+      request.headers.get("x-forwarded-host")?.split(",")[0]?.trim(),
+      request.headers.get("host"),
+      request.nextUrl.hostname,
+    ]
+      .filter((hostname): hostname is string => Boolean(hostname))
+      .map((hostname) => hostname.replace(/^https?:\/\//, "").split(":")[0].toLowerCase())
+      .filter((hostname) => hostname.endsWith(".vusercontent.net"))
+
+    if (publicHostnames.length > 0) {
+      return publicHostnames.includes(originHostname)
+    }
+
+    // v0 can rewrite the public host to an internal address before Next.js sees
+    // the request. In that case, the browser's fetch metadata is the only
+    // remaining same-origin signal.
+    return request.headers.get("sec-fetch-site") === "same-origin"
   } catch {
     return false
   }

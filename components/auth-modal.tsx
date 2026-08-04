@@ -26,6 +26,7 @@ export default function AuthModal({ isOpen, onClose, mode, onModeChange }: AuthM
   const [showEmailConfirmation, setShowEmailConfirmation] = useState(false)
   const [userEmail, setUserEmail] = useState("")
   const [allowLocation, setAllowLocation] = useState(false)
+  const [isRequestingLocation, setIsRequestingLocation] = useState(false)
   const [locationNotice, setLocationNotice] = useState<string | null>(null)
   const [locationNeedsTopLevel, setLocationNeedsTopLevel] = useState(false)
   const [formData, setFormData] = useState({
@@ -80,10 +81,7 @@ export default function AuthModal({ isOpen, onClose, mode, onModeChange }: AuthM
     return true
   }
 
-  const [isRequestingLocation, setIsRequestingLocation] = useState(false)
-
   const handleLocationCheckboxChange = async () => {
-    // If already checked, uncheck
     if (allowLocation) {
       setAllowLocation(false)
       setLocationNotice(null)
@@ -91,28 +89,40 @@ export default function AuthModal({ isOpen, onClose, mode, onModeChange }: AuthM
       return
     }
 
-    // Prevent multiple simultaneous requests
     if (isRequestingLocation) return
 
-    if (typeof window !== "undefined" && !window.isSecureContext && window.location.hostname !== "localhost") {
-      setLocationNotice("Location requires HTTPS. Open the secure app URL, or continue without sharing your location.")
+    if (
+      typeof window !== "undefined" &&
+      !window.isSecureContext &&
+      window.location.hostname !== "localhost"
+    ) {
+      setLocationNotice(
+        "Location requires HTTPS. Open the secure app URL, or continue without sharing your location.",
+      )
       setLocationNeedsTopLevel(false)
       return
     }
 
     if (typeof navigator === "undefined" || !navigator.geolocation) {
-      setLocationNotice("Geolocation is not supported by this browser. You can continue without sharing your location.")
+      setLocationNotice(
+        "Geolocation is not supported by this browser. You can continue without sharing your location.",
+      )
       setLocationNeedsTopLevel(false)
       return
     }
 
     const permissionsPolicy = (
       document as Document & {
-        permissionsPolicy?: { allowsFeature: (feature: string) => boolean }
+        permissionsPolicy?: {
+          allowsFeature: (feature: string) => boolean
+        }
       }
     ).permissionsPolicy
 
-    if (permissionsPolicy && !permissionsPolicy.allowsFeature("geolocation")) {
+    if (
+      permissionsPolicy &&
+      !permissionsPolicy.allowsFeature("geolocation")
+    ) {
       setLocationNotice(
         "Location is blocked inside the v0 preview. Open the app in a new tab to allow it, or continue without location.",
       )
@@ -127,26 +137,34 @@ export default function AuthModal({ isOpen, onClose, mode, onModeChange }: AuthM
 
     try {
       const location = await getCurrentLocation()
+
       if (location) {
         setAllowLocation(true)
         setError(null)
         setLocationNotice(null)
       } else {
         setAllowLocation(false)
-        let permissionState: PermissionState | null = null
+
+        let permissionState: PermissionStatus | null = null
 
         try {
-          permissionState = (await navigator.permissions?.query({ name: "geolocation" })).state ?? null
+          permissionState =
+            (
+              await navigator.permissions?.query({
+                name: "geolocation",
+              })
+            ) ?? null
         } catch {
-          // Permissions API is not available in every browser.
+          // Permissions API is not supported by every browser.
         }
 
         const embeddedPreview = window.self !== window.top
+
         setLocationNeedsTopLevel(embeddedPreview)
         setLocationNotice(
           embeddedPreview
             ? "The embedded preview could not request location. Open the app in a new tab to allow it, or continue without location."
-            : permissionState === "denied"
+            : permissionState?.state === "denied"
               ? "Location is blocked in your browser settings. You can enable it there or continue without location."
               : "Location was not available. You can try again or continue without sharing it.",
         )
@@ -154,12 +172,19 @@ export default function AuthModal({ isOpen, onClose, mode, onModeChange }: AuthM
     } catch (err: any) {
       setAllowLocation(false)
       setLocationNeedsTopLevel(window.self !== window.top)
+
       if (err?.code === 1) {
-        setLocationNotice("Location permission was denied. You can enable it in browser settings or continue without location.")
+        setLocationNotice(
+          "Location permission was denied. You can enable it in browser settings or continue without location.",
+        )
       } else if (err?.code === 3) {
-        setLocationNotice("Location request timed out. You can try again or continue without location.")
+        setLocationNotice(
+          "Location request timed out. You can try again or continue without location.",
+        )
       } else {
-        setLocationNotice("Could not get your location. You can try again or continue without location.")
+        setLocationNotice(
+          "Could not get your location. You can try again or continue without location.",
+        )
       }
     } finally {
       setIsRequestingLocation(false)
@@ -171,6 +196,9 @@ export default function AuthModal({ isOpen, onClose, mode, onModeChange }: AuthM
     e.preventDefault()
     if (!validateForm()) return
 
+    // Prevent double submission
+    if (loading) return
+
     setLoading(true)
     setError(null)
     setSuccess(null)
@@ -180,7 +208,17 @@ export default function AuthModal({ isOpen, onClose, mode, onModeChange }: AuthM
         const { error } = await signUp(formData.email, formData.password, formData.name)
 
         if (error) {
-          setError(error.message || "Failed to create account")
+          const errorMsg = error.message || "Failed to create account"
+          
+          // Better error messaging for rate limiting
+          if (errorMsg.toLowerCase().includes("rate")) {
+            setError("Too many signup attempts. Please wait a few minutes before trying again.")
+          } else if (errorMsg.toLowerCase().includes("already exists") || errorMsg.toLowerCase().includes("user already")) {
+            setError("This email is already registered. Please sign in instead.")
+            handleModeChange("signin")
+          } else {
+            setError(errorMsg)
+          }
         } else {
           setUserEmail(formData.email)
           setShowEmailConfirmation(true)
@@ -190,7 +228,13 @@ export default function AuthModal({ isOpen, onClose, mode, onModeChange }: AuthM
         const { error } = await signIn(formData.email, formData.password)
 
         if (error) {
-          setError(error.message || "Failed to sign in")
+          const errorMsg = error.message || "Failed to sign in"
+          
+          if (errorMsg.toLowerCase().includes("invalid")) {
+            setError("Invalid email or password")
+          } else {
+            setError(errorMsg)
+          }
         } else {
           setSuccess("Welcome back!")
           setTimeout(() => {
@@ -537,7 +581,7 @@ export default function AuthModal({ isOpen, onClose, mode, onModeChange }: AuthM
                           className="text-sm font-medium text-gray-300 flex items-center gap-2"
                         >
                           <MapPin className="w-4 h-4 text-purple-400" />
-                          {isRequestingLocation ? "Requesting Location..." : allowLocation ? "Location Allowed" : "Allow Location"}
+                          {isRequestingLocation ? "Requesting Location..." : allowLocation ? "Location Allowed ✓" : "Share Location (Optional)"}
                         </span>
                         <p className="text-xs text-gray-400 mt-1 leading-relaxed">
                           Optional. Share your location for more personalized manifestations.
@@ -559,6 +603,28 @@ export default function AuthModal({ isOpen, onClose, mode, onModeChange }: AuthM
                           </button>
                         )}
                       </div>
+                    )}
+                  </div>
+                )}
+
+                {locationNotice && (
+                  <div className="rounded-lg border border-amber-500/30 bg-amber-950/20 p-3 text-xs leading-relaxed text-amber-200">
+                    <p>{locationNotice}</p>
+
+                    {locationNeedsTopLevel && (
+                      <button
+                        type="button"
+                        className="mt-2 font-semibold text-amber-100 underline underline-offset-2 hover:text-white"
+                        onClick={() => {
+                          window.open(
+                            window.location.href,
+                            "_blank",
+                            "noopener,noreferrer",
+                          )
+                        }}
+                      >
+                        Open app in a new tab
+                      </button>
                     )}
                   </div>
                 )}
