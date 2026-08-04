@@ -28,7 +28,6 @@ export default function AuthModal({ isOpen, onClose, mode, onModeChange }: AuthM
   const [allowLocation, setAllowLocation] = useState(false)
   const [isRequestingLocation, setIsRequestingLocation] = useState(false)
   const [locationNotice, setLocationNotice] = useState<string | null>(null)
-  const [locationNeedsTopLevel, setLocationNeedsTopLevel] = useState(false)
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -85,7 +84,6 @@ export default function AuthModal({ isOpen, onClose, mode, onModeChange }: AuthM
     if (allowLocation) {
       setAllowLocation(false)
       setLocationNotice(null)
-      setLocationNeedsTopLevel(false)
       return
     }
 
@@ -99,7 +97,6 @@ export default function AuthModal({ isOpen, onClose, mode, onModeChange }: AuthM
       setLocationNotice(
         "Location requires HTTPS. Open the secure app URL, or continue without sharing your location.",
       )
-      setLocationNeedsTopLevel(false)
       return
     }
 
@@ -107,7 +104,6 @@ export default function AuthModal({ isOpen, onClose, mode, onModeChange }: AuthM
       setLocationNotice(
         "Geolocation is not supported by this browser. You can continue without sharing your location.",
       )
-      setLocationNeedsTopLevel(false)
       return
     }
 
@@ -124,16 +120,14 @@ export default function AuthModal({ isOpen, onClose, mode, onModeChange }: AuthM
       !permissionsPolicy.allowsFeature("geolocation")
     ) {
       setLocationNotice(
-        "Location is blocked inside the v0 preview. Open the app in a new tab to allow it, or continue without location.",
+        "Location is blocked inside the embedded preview. Use the deployed app outside the preview to share it, or continue without location.",
       )
-      setLocationNeedsTopLevel(true)
       return
     }
 
     setIsRequestingLocation(true)
     setError(null)
     setLocationNotice(null)
-    setLocationNeedsTopLevel(false)
 
     try {
       const location = await getCurrentLocation()
@@ -160,10 +154,9 @@ export default function AuthModal({ isOpen, onClose, mode, onModeChange }: AuthM
 
         const embeddedPreview = window.self !== window.top
 
-        setLocationNeedsTopLevel(embeddedPreview)
         setLocationNotice(
           embeddedPreview
-            ? "The embedded preview could not request location. Open the app in a new tab to allow it, or continue without location."
+            ? "The embedded preview could not request location. Use the deployed app outside the preview to share it, or continue without location."
             : permissionState?.state === "denied"
               ? "Location is blocked in your browser settings. You can enable it there or continue without location."
               : "Location was not available. You can try again or continue without sharing it.",
@@ -171,7 +164,6 @@ export default function AuthModal({ isOpen, onClose, mode, onModeChange }: AuthM
       }
     } catch (err: any) {
       setAllowLocation(false)
-      setLocationNeedsTopLevel(window.self !== window.top)
 
       if (err?.code === 1) {
         setLocationNotice(
@@ -285,7 +277,6 @@ export default function AuthModal({ isOpen, onClose, mode, onModeChange }: AuthM
     setShowConfirmPassword(false)
     setAllowLocation(false)
     setLocationNotice(null)
-    setLocationNeedsTopLevel(false)
     setError(null)
     setSuccess(null)
   }
@@ -594,16 +585,6 @@ export default function AuthModal({ isOpen, onClose, mode, onModeChange }: AuthM
                         className="rounded-lg border border-amber-500/30 bg-amber-950/20 p-3 text-xs leading-relaxed text-amber-200"
                       >
                         <p>{locationNotice}</p>
-                        {locationNeedsTopLevel && (
-                          <a
-                            href="/"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="mt-2 font-semibold text-amber-100 underline underline-offset-2 hover:text-white"
-                          >
-                            Open app in a new tab
-                          </a>
-                        )}
                       </div>
                     )}
                   </div>
