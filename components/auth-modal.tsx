@@ -581,7 +581,7 @@ export default function AuthModal({ isOpen, onClose, mode, onModeChange }: AuthM
                           className="text-sm font-medium text-gray-300 flex items-center gap-2"
                         >
                           <MapPin className="w-4 h-4 text-purple-400" />
-                          {isRequestingLocation ? "Requesting Location..." : allowLocation ? "Location Allowed ✓" : "Share Location (Optional)"}
+                          {isRequestingLocation ? "Requesting Location..." : allowLocation ? "Location Allowed" : "Share Location (Optional)"}
                         </span>
                         <p className="text-xs text-gray-400 mt-1 leading-relaxed">
                           Optional. Share your location for more personalized manifestations.
@@ -589,42 +589,22 @@ export default function AuthModal({ isOpen, onClose, mode, onModeChange }: AuthM
                       </div>
                     </button>
                     {locationNotice && (
-                      <div className="rounded-lg border border-amber-500/30 bg-amber-950/20 p-3 text-xs leading-relaxed text-amber-200">
+                      <div
+                        aria-live="polite"
+                        className="rounded-lg border border-amber-500/30 bg-amber-950/20 p-3 text-xs leading-relaxed text-amber-200"
+                      >
                         <p>{locationNotice}</p>
                         {locationNeedsTopLevel && (
-                          <button
-                            type="button"
+                          <a
+                            href="/"
+                            target="_blank"
+                            rel="noopener noreferrer"
                             className="mt-2 font-semibold text-amber-100 underline underline-offset-2 hover:text-white"
-                            onClick={() => {
-                              window.open(window.location.href, "_blank", "noopener,noreferrer")
-                            }}
                           >
                             Open app in a new tab
-                          </button>
+                          </a>
                         )}
                       </div>
-                    )}
-                  </div>
-                )}
-
-                {locationNotice && (
-                  <div className="rounded-lg border border-amber-500/30 bg-amber-950/20 p-3 text-xs leading-relaxed text-amber-200">
-                    <p>{locationNotice}</p>
-
-                    {locationNeedsTopLevel && (
-                      <button
-                        type="button"
-                        className="mt-2 font-semibold text-amber-100 underline underline-offset-2 hover:text-white"
-                        onClick={() => {
-                          window.open(
-                            window.location.href,
-                            "_blank",
-                            "noopener,noreferrer",
-                          )
-                        }}
-                      >
-                        Open app in a new tab
-                      </button>
                     )}
                   </div>
                 )}
