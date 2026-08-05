@@ -663,39 +663,9 @@ function HomeContent() {
     }
   }, [searchResult])
 
-  const getGlobeUrl = () => {
-    const baseUrl = "/globe.html"
-
-    if (searchResult) {
-      const params = new URLSearchParams()
-
-      // Add basic manifestation data
-      if (searchResult.query) {
-        params.set("manifestation", encodeURIComponent(searchResult.query))
-      }
-      if (searchResult.response) {
-        params.set("response", encodeURIComponent(searchResult.response))
-      }
-      if (searchResult.timestamp) {
-        params.set("timestamp", searchResult.timestamp)
-      }
-
-      // Add coordinates if available
-      if (searchResult.coordinates && Array.isArray(searchResult.coordinates) && searchResult.coordinates.length > 0) {
-        params.set("coordinates", JSON.stringify(searchResult.coordinates))
-      }
-
-      // Add arcs data if available - this is the key part for arc visualization
-      if (searchResult.arcsData && Array.isArray(searchResult.arcsData) && searchResult.arcsData.length > 0) {
-        params.set("arcs", JSON.stringify(searchResult.arcsData))
-      }
-
-      const finalUrl = `${baseUrl}?${params.toString()}`
-      return finalUrl
-    }
-
-    return baseUrl
-  }
+  // Keep the iframe URL small. Manifestation data, including all 108 arcs, is
+  // delivered through postMessage once the same-origin globe reports ready.
+  const getGlobeUrl = () => "/globe.html"
 
   // Show loading state while auth is initializing
   if (authLoading) {
