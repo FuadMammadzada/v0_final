@@ -98,7 +98,7 @@ export async function handleManifestationRequest(request: Request, deps: Manifes
           userId: auth.user.id,
           mode,
         },
-        60_000,
+        240_000,
       )
       const profile = await (deps.finalizeManifestationAttempt ?? finalizeManifestationAttempt)(
         auth.user.id,

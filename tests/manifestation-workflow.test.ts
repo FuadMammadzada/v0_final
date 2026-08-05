@@ -95,7 +95,7 @@ describe("handleManifestationRequest", () => {
         userId,
         mode: "default",
       },
-      60_000,
+      240_000,
     )
     expect(finalizeManifestationAttempt).toHaveBeenCalledWith(userId, manifestationId, JSON.stringify(data))
     expect(createManifestationJob).not.toHaveBeenCalled()
