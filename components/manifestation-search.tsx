@@ -180,7 +180,8 @@ const ManifestationSearch = ({
       })
 
       if (!response.ok) {
-        throw new Error("Manifestation status unavailable")
+        const errorBody = await response.json().catch(() => null)
+        throw new Error(errorBody?.error || "Manifestation status unavailable")
       }
 
       const statusBody = await response.json()
@@ -297,8 +298,8 @@ const ManifestationSearch = ({
       if (initialCarrierCount === 0) {
         await pollForMessages(token, locationData, query, enrichedResult)
       }
-    } catch {
-      setSearchError("An error occurred. Please try again.")
+    } catch (error) {
+      setSearchError(error instanceof Error && error.message ? error.message : "An error occurred. Please try again.")
     } finally {
       setLoading(false)
       setSearching(false)

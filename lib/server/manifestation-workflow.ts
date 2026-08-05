@@ -3,10 +3,12 @@ import "server-only"
 import { NextResponse } from "next/server"
 import { z } from "zod"
 import { authenticateRequest, unauthorizedResponse } from "./auth"
-import { getRequiredEnv } from "./env"
+import { getOptionalEnv, getRequiredEnv } from "./env"
 import { createRequestLogContext } from "./logger"
+import { callMakeWebhook } from "./make-webhook"
 import { createManifestationJob, triggerManifestationJob } from "./manifestation-jobs"
 import {
+  finalizeManifestationAttempt,
   releaseManifestationAttempt,
   reserveManifestationAttempt,
   type ManifestationMode,
@@ -26,14 +28,21 @@ export type ManifestationWorkflowDeps = {
   authenticateRequest?: typeof authenticateRequest
   checkRateLimit?: typeof checkRateLimit
   getRequiredEnv?: typeof getRequiredEnv
+  getOptionalEnv?: typeof getOptionalEnv
   reserveManifestationAttempt?: typeof reserveManifestationAttempt
+  finalizeManifestationAttempt?: typeof finalizeManifestationAttempt
   releaseManifestationAttempt?: typeof releaseManifestationAttempt
+  callMakeWebhook?: typeof callMakeWebhook
   createManifestationJob?: typeof createManifestationJob
   triggerManifestationJob?: typeof triggerManifestationJob
 }
 
 function workflowUrl(mode: ManifestationMode, getEnv: typeof getRequiredEnv) {
   return mode === "complete_108" ? getEnv("MAKE_COMPLETE_108_WEBHOOK_URL") : getEnv("MAKE_MANIFESTATION_WEBHOOK_URL")
+}
+
+function serializeWorkflowResponse(data: unknown) {
+  return JSON.stringify(data ?? null).slice(0, 20_000)
 }
 
 export async function handleManifestationRequest(request: Request, deps: ManifestationWorkflowDeps = {}) {
@@ -60,8 +69,9 @@ export async function handleManifestationRequest(request: Request, deps: Manifes
   if (!parsed.ok) return parsed.response
   const mode: ManifestationMode = parsed.data.mode ?? "default"
 
+  let makeWebhookUrl: string
   try {
-    workflowUrl(mode, deps.getRequiredEnv ?? getRequiredEnv)
+    makeWebhookUrl = workflowUrl(mode, deps.getRequiredEnv ?? getRequiredEnv)
   } catch {
     return NextResponse.json({ error: "Manifestation workflow is not configured" }, { status: 503 })
   }
@@ -74,6 +84,40 @@ export async function handleManifestationRequest(request: Request, deps: Manifes
 
   if (!reservation.ok) {
     return NextResponse.json({ error: reservation.error }, { status: reservation.status })
+  }
+
+  const callbackSecret = (deps.getOptionalEnv ?? getOptionalEnv)("MAKE_CALLBACK_SECRET")
+  if (!callbackSecret) {
+    try {
+      const data = await (deps.callMakeWebhook ?? callMakeWebhook)(
+        makeWebhookUrl,
+        {
+          lat: parsed.data.lat,
+          lon: parsed.data.lon,
+          query: parsed.data.query,
+          userId: auth.user.id,
+          mode,
+        },
+        60_000,
+      )
+      const profile = await (deps.finalizeManifestationAttempt ?? finalizeManifestationAttempt)(
+        auth.user.id,
+        reservation.manifestationId,
+        serializeWorkflowResponse(data),
+      )
+
+      return NextResponse.json({ data, profile })
+    } catch (error) {
+      await (deps.releaseManifestationAttempt ?? releaseManifestationAttempt)(
+        auth.user.id,
+        reservation.manifestationId,
+        "Manifestation workflow failed",
+      ).catch(() => undefined)
+
+      captureServerError(error, { ...context, userId: auth.user.id }, { area: "make_manifestation_direct" })
+      emitAlert("make_failure", { ...context, userId: auth.user.id }, { mode })
+      return NextResponse.json({ error: "Manifestation workflow failed" }, { status: 502 })
+    }
   }
 
   try {

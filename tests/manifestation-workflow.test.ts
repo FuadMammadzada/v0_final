@@ -5,6 +5,14 @@ import { handleManifestationRequest, type ManifestationWorkflowDeps } from "@/li
 const userId = "00000000-0000-4000-8000-000000000001"
 const manifestationId = "00000000-0000-4000-8000-000000000002"
 const paymentId = "00000000-0000-4000-8000-000000000003"
+const profile = {
+  id: userId,
+  email: "user@example.com",
+  name: "Test User",
+  last_manifestation: new Date("2026-06-08T00:00:00.000Z").toISOString(),
+  manifestation_count: 1,
+  bonus_searches: 0,
+}
 
 const job = {
   id: "00000000-0000-4000-8000-000000000004",
@@ -46,7 +54,9 @@ function deps(overrides: Partial<ManifestationWorkflowDeps> = {}): Manifestation
     })),
     checkRateLimit: vi.fn(async () => null),
     getRequiredEnv: vi.fn((name: string) => `https://make.test/${name}`),
+    getOptionalEnv: vi.fn(() => "callback-secret"),
     reserveManifestationAttempt: vi.fn(async () => ({ ok: true as const, manifestationId, paymentId: null })),
+    finalizeManifestationAttempt: vi.fn(async () => profile),
     releaseManifestationAttempt: vi.fn(async () => undefined),
     createManifestationJob: vi.fn(async () => job),
     triggerManifestationJob: vi.fn(async () => job),
@@ -55,6 +65,42 @@ function deps(overrides: Partial<ManifestationWorkflowDeps> = {}): Manifestation
 }
 
 describe("handleManifestationRequest", () => {
+  it("uses the webhook response directly when callback mode is not configured", async () => {
+    const data = {
+      coordinates: [{ lat: 40.4093, lon: 49.8671 }],
+    }
+    const callMakeWebhook = vi.fn(async () => data)
+    const finalizeManifestationAttempt = vi.fn(async () => profile)
+    const createManifestationJob = vi.fn(async () => job)
+
+    const response = await handleManifestationRequest(
+      manifestationRequest(),
+      deps({
+        getOptionalEnv: vi.fn(() => undefined),
+        callMakeWebhook,
+        finalizeManifestationAttempt,
+        createManifestationJob,
+      }),
+    )
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(body).toEqual({ data, profile })
+    expect(callMakeWebhook).toHaveBeenCalledWith(
+      "https://make.test/MAKE_MANIFESTATION_WEBHOOK_URL",
+      {
+        lat: 25.2048,
+        lon: 55.2708,
+        query: "Manifest a resilient launch",
+        userId,
+        mode: "default",
+      },
+      60_000,
+    )
+    expect(finalizeManifestationAttempt).toHaveBeenCalledWith(userId, manifestationId, JSON.stringify(data))
+    expect(createManifestationJob).not.toHaveBeenCalled()
+  })
+
   it("blocks unpaid complete_108 requests before calling Make", async () => {
     const triggerManifestationJob = vi.fn(async () => job)
     const response = await handleManifestationRequest(
