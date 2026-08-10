@@ -5,6 +5,10 @@ import { checkoutSessionBelongsToUser, getCheckoutSessionId } from "@/lib/server
 
 describe("check-payment helpers", () => {
   const routeSource = fs.readFileSync(path.join(process.cwd(), "app/api/check-payment/route.ts"), "utf8")
+  const recoverySource = fs.readFileSync(
+    path.join(process.cwd(), "app/api/check-payment/recover/route.ts"),
+    "utf8",
+  )
 
   it("extracts the Checkout Session ID from a Stripe client secret", () => {
     expect(getCheckoutSessionId("cs_test_abc_secret_xyz")).toBe("cs_test_abc")
@@ -42,5 +46,12 @@ describe("check-payment helpers", () => {
     expect(routeSource).toContain("getCheckoutSessionPriceId(session.id)")
     expect(routeSource).toContain("fulfillCheckoutSession(session, priceId)")
     expect(routeSource.match(/paymentResult = await readPayment\(\)/g)).toHaveLength(2)
+  })
+
+  it("recovers an existing unconsumed premium entitlement after reload", () => {
+    expect(recoverySource).toContain('.eq("action", "complete_108")')
+    expect(recoverySource).toContain('.is("entitlement_consumed_at", null)')
+    expect(recoverySource).toContain("fulfillCheckoutSession(session, priceId)")
+    expect(recoverySource).toContain('action: "complete_108"')
   })
 })

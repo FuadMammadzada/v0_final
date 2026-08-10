@@ -14,6 +14,7 @@ import { PaymentModal } from "@/components/payment-modal"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogFooter, DialogTitle } from "@/components/ui/dialog"
 import { useAuth } from "@/lib/auth-context"
+import { getAccessToken } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
 import { Toaster } from "@/components/ui/toaster"
 
@@ -45,6 +46,40 @@ function HomeContent() {
   } = useAuth()
 
   const { toast } = useToast()
+
+  useEffect(() => {
+    if (!user) {
+      setUseComplete108Hook(false)
+      return
+    }
+
+    let cancelled = false
+
+    const recoverPremiumMode = async () => {
+      try {
+        const token = await getAccessToken()
+        const response = await fetch("/api/check-payment/recover", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        })
+        if (!response.ok) return
+
+        const data = await response.json()
+        if (!cancelled && data.action === "complete_108") {
+          setUseComplete108Hook(true)
+        }
+      } catch {
+        // The checkout modal can still confirm a new payment if recovery is unavailable.
+      }
+    }
+
+    void recoverPremiumMode()
+    return () => {
+      cancelled = true
+    }
+  }, [user])
 
   // Audio state - enhanced with interrupt handling
   const [isMuted, setIsMuted] = useState(false)
