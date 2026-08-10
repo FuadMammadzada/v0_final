@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useCallback, useState } from "react"
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import confetti from "canvas-confetti"
 
@@ -121,6 +121,9 @@ export default function SendToUniverseEffect({
             {/* Top Section - Exciting Title */}
             <div className="text-center space-y-1 mb-4">
               <DialogTitle className="sr-only">Manifest Sent to Universe</DialogTitle>
+              <DialogDescription className="sr-only">
+                Your intention has been amplified and released into the cosmic stream.
+              </DialogDescription>
               <div className="text-amber-300 text-[10px] font-bold tracking-[0.2em] uppercase">
                 Sacred Transmission Complete
               </div>

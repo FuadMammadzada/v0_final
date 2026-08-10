@@ -6,7 +6,12 @@ import {
   EmbeddedCheckoutProvider,
 } from '@stripe/react-stripe-js'
 import { loadStripe } from '@stripe/stripe-js'
-import { Dialog, DialogContent } from '@/components/ui/dialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { getAccessToken } from '@/lib/supabase'
 
 const stripePublishableKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
@@ -126,6 +131,10 @@ export function PaymentModal({
         onTouchStart={(event) => event.stopPropagation()}
         onTouchEnd={(event) => event.stopPropagation()}
       >
+        <DialogTitle className="sr-only">Secure checkout</DialogTitle>
+        <DialogDescription className="sr-only">
+          Complete your payment securely to continue your manifestation journey.
+        </DialogDescription>
         <div className="p-4">
           {error && (
             <div className="mb-3 rounded border border-red-500/40 bg-red-950/40 px-3 py-2 text-sm text-red-100">
