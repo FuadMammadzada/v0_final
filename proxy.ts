@@ -35,10 +35,14 @@ function requestOrigins(request: NextRequest) {
   return origins
 }
 
+function isV0HostedHostname(hostname: string) {
+  return hostname.endsWith(".vusercontent.net") || hostname.endsWith(".v0.build")
+}
+
 function isV0SameOriginRequest(request: NextRequest, origin: string) {
   try {
     const originHostname = new URL(origin).hostname.toLowerCase()
-    if (!originHostname.endsWith(".vusercontent.net")) return false
+    if (!isV0HostedHostname(originHostname)) return false
 
     const publicHostnames = [
       request.headers.get("x-forwarded-host")?.split(",")[0]?.trim(),
@@ -47,7 +51,7 @@ function isV0SameOriginRequest(request: NextRequest, origin: string) {
     ]
       .filter((hostname): hostname is string => Boolean(hostname))
       .map((hostname) => hostname.replace(/^https?:\/\//, "").split(":")[0].toLowerCase())
-      .filter((hostname) => hostname.endsWith(".vusercontent.net"))
+      .filter(isV0HostedHostname)
 
     if (publicHostnames.length > 0) {
       return publicHostnames.includes(originHostname)
