@@ -1,7 +1,11 @@
+import fs from "node:fs"
+import path from "node:path"
 import { describe, expect, it } from "vitest"
 import { checkoutSessionBelongsToUser, getCheckoutSessionId } from "@/lib/server/check-payment"
 
 describe("check-payment helpers", () => {
+  const routeSource = fs.readFileSync(path.join(process.cwd(), "app/api/check-payment/route.ts"), "utf8")
+
   it("extracts the Checkout Session ID from a Stripe client secret", () => {
     expect(getCheckoutSessionId("cs_test_abc_secret_xyz")).toBe("cs_test_abc")
   })
@@ -31,5 +35,12 @@ describe("check-payment helpers", () => {
         "user_123",
       ),
     ).toBe(false)
+  })
+
+  it("activates paid sessions when the Stripe webhook has not fulfilled them yet", () => {
+    expect(routeSource).toContain('session.payment_status === "paid"')
+    expect(routeSource).toContain("getCheckoutSessionPriceId(session.id)")
+    expect(routeSource).toContain("fulfillCheckoutSession(session, priceId)")
+    expect(routeSource.match(/paymentResult = await readPayment\(\)/g)).toHaveLength(2)
   })
 })

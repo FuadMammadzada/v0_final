@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   EmbeddedCheckout,
   EmbeddedCheckoutProvider,
@@ -36,12 +36,21 @@ export function PaymentModal({
   const [checkoutToken, setCheckoutToken] = useState<string | null>(null)
   const [hasProcessed, setHasProcessed] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const paymentCheckInFlightRef = useRef(false)
+  const onCloseRef = useRef(onClose)
+  const onSuccessRef = useRef(onSuccess)
+
+  useEffect(() => {
+    onCloseRef.current = onClose
+    onSuccessRef.current = onSuccess
+  }, [onClose, onSuccess])
 
   const resetCheckout = useCallback(() => {
     setClientSecret(null)
     setCheckoutToken(null)
     setHasProcessed(false)
     setError(null)
+    paymentCheckInFlightRef.current = false
   }, [])
 
   const startCheckout = useCallback(async () => {
@@ -89,8 +98,11 @@ export function PaymentModal({
   useEffect(() => {
     if (!isOpen || !clientSecret || !checkoutToken || hasProcessed) return
 
+    let cancelled = false
+
     const checkPaymentStatus = async () => {
-      if (hasProcessed) return
+      if (cancelled || paymentCheckInFlightRef.current) return
+      paymentCheckInFlightRef.current = true
 
       try {
         const response = await fetch('/api/check-payment', {
@@ -103,25 +115,33 @@ export function PaymentModal({
         })
         const data = await response.json()
 
-        if (response.ok && data.status === 'paid' && data.fulfilled && data.action) {
+        if (!response.ok) {
+          throw new Error(data.error || 'Unable to confirm payment')
+        }
+
+        if (!cancelled && data.status === 'paid' && data.fulfilled && data.action) {
           setHasProcessed(true)
-          await onSuccess(data.action === 'complete_108' ? 'complete_108' : 'one_more_try')
-          onClose()
+          await onSuccessRef.current(data.action === 'complete_108' ? 'complete_108' : 'one_more_try')
+          onCloseRef.current()
           resetCheckout()
         }
-      } catch {
-        setError('Unable to confirm payment yet. Please wait a moment.')
+      } catch (paymentError) {
+        if (!cancelled) {
+          setError(paymentError instanceof Error ? paymentError.message : 'Unable to confirm payment yet.')
+        }
+      } finally {
+        paymentCheckInFlightRef.current = false
       }
     }
 
-    const initialTimeout = setTimeout(checkPaymentStatus, 2000)
-    const interval = setInterval(checkPaymentStatus, 2000)
+    void checkPaymentStatus()
+    const interval = setInterval(checkPaymentStatus, 2500)
 
     return () => {
-      clearTimeout(initialTimeout)
+      cancelled = true
       clearInterval(interval)
     }
-  }, [isOpen, clientSecret, checkoutToken, hasProcessed, onSuccess, onClose, resetCheckout])
+  }, [isOpen, clientSecret, checkoutToken, hasProcessed, resetCheckout])
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>

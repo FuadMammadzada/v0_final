@@ -2,7 +2,7 @@ import "server-only"
 
 import type Stripe from "stripe"
 import { getStripe } from "@/lib/stripe"
-import { fulfillCheckoutSession } from "./payments"
+import { fulfillCheckoutSession, getCheckoutSessionPriceId } from "./payments"
 import { createSupabaseAdminClient } from "./supabase"
 
 export class WebhookRejectedError extends Error {
@@ -18,20 +18,6 @@ async function markCheckoutSessionStatus(session: Stripe.Checkout.Session, statu
       updated_at: new Date().toISOString(),
     })
     .eq("stripe_checkout_session_id", session.id)
-}
-
-async function getCheckoutSessionPriceId(sessionId: string): Promise<string | null> {
-  const lineItems = await getStripe().checkout.sessions.listLineItems(sessionId, {
-    expand: ["data.price"],
-    limit: 2,
-  })
-
-  if (lineItems.data.length !== 1) {
-    return null
-  }
-
-  const price = lineItems.data[0]?.price
-  return typeof price === "string" ? price : price?.id ?? null
 }
 
 export async function handleStripeEvent(event: Stripe.Event) {

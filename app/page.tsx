@@ -1405,8 +1405,6 @@ function HomeContent() {
         }}
         onSuccess={async (action) => {
           try {
-            await refreshUserProfile()
-
             if (action === "complete_108") {
               // Set the flag to use the complete108 hook
               setUseComplete108Hook(true)
@@ -1437,6 +1435,8 @@ function HomeContent() {
                 duration: 5000,
               })
             }
+
+            await refreshUserProfile()
           } catch {
             toast({
               title: "Error",
