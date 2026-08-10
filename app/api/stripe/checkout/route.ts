@@ -3,7 +3,7 @@ import { z } from "zod"
 import { getStripe } from "@/lib/stripe"
 import { getProduct } from "@/lib/products"
 import { authenticateRequest, unauthorizedResponse } from "@/lib/server/auth"
-import { getAppUrl, getOptionalEnv } from "@/lib/server/env"
+import { getOptionalEnv } from "@/lib/server/env"
 import { checkRateLimit } from "@/lib/server/rate-limit"
 import { parseJsonBody } from "@/lib/server/request"
 import { createSupabaseAdminClient } from "@/lib/server/supabase"
@@ -34,7 +34,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unknown product" }, { status: 400 })
   }
 
-  const appUrl = getAppUrl()
   const stripe = getStripe()
   const priceId = getOptionalEnv(product.priceEnvVar)
 
@@ -65,7 +64,6 @@ export async function POST(request: Request) {
     line_items: [lineItem],
     mode: "payment",
     client_reference_id: auth.user.id,
-    return_url: `${appUrl}/?checkout_session_id={CHECKOUT_SESSION_ID}`,
     metadata: {
       userId: auth.user.id,
       productId: product.id,
