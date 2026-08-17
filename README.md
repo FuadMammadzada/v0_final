@@ -22,13 +22,29 @@ ManifestChain is a Next.js app for authenticated manifestation searches, locatio
 
 2. Copy `.env.example` to `.env.local` and fill in real values.
 
-3. Run the Supabase migration:
+3. Configure Supabase before starting the app:
 
-   - Open Supabase SQL Editor.
-   - Run `supabase/migrations/0001_initial_schema.sql`.
+   - Open the Supabase project linked to this deployment.
+   - In **Project Settings → API**, copy the project URL into `NEXT_PUBLIC_SUPABASE_URL` and the publishable/anon key into `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
+   - Add `SUPABASE_SERVICE_ROLE_KEY` only to server-side/Vercel environment variables. Never expose it through a `NEXT_PUBLIC_` variable or client component.
+   - In **Authentication → URL Configuration**, add the deployed app URL and the local URL (`http://localhost:3000`) to the allowed redirect URLs.
+
+4. Run the Supabase schema migration:
+
+   - Open the Supabase SQL Editor.
+   - Run `supabase/migrations/0001_initial_schema.sql` once.
    - Confirm these tables exist: `user_profiles`, `manifestations`, `payments`, `webhook_events`.
+   - Confirm RLS is enabled for every user-data table and that policies scope rows to the authenticated user with `auth.uid()`.
+   - Do not disable RLS to resolve an access error; fix the policy or Data API grants instead.
 
-4. Start the app:
+5. Verify the database setup:
+
+   - Create a test account through the app and confirm a `user_profiles` row is created.
+   - Create a test manifestation and confirm it is scoped to that user.
+   - Verify another authenticated user cannot read or update the first user’s profile, manifestations, or payments.
+   - Run the app’s typecheck and tests before deploying.
+
+6. Start the app:
 
    ```bash
    pnpm dev
