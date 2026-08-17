@@ -832,7 +832,7 @@ function HomeContent() {
             <TimeAwareMobileHeroVideo />
             <video
               className="absolute inset-0 hidden h-full w-full bg-black object-cover md:block"
-              src="/videos/hero-day.mp4"
+              src="/videos/hero-desktop.mp4"
               autoPlay
               muted
               loop

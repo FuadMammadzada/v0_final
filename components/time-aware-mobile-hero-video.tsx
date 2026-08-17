@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react"
 
-const DAY_VIDEO = "/videos/hero-day.mp4"
-const NIGHT_VIDEO = "/videos/hero-night.mp4"
+const DAY_VIDEO = "/videos/hero-mobile-day.mp4"
+const NIGHT_VIDEO = "/videos/hero-mobile-night.mp4"
 
 export function videoForLocalTime(date = new Date()) {
   const hour = date.getHours()
